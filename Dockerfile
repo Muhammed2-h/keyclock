@@ -1,51 +1,43 @@
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # Stage 1 – Build / configure Keycloak
-# Uses the official Keycloak image so we get the full kc.sh tooling
-# ─────────────────────────────────────────────────────────────
+# Build-time options MUST be set here when using --optimized at runtime.
+# ─────────────────────────────────────────────────────────────────────────────
 FROM quay.io/keycloak/keycloak:26.1 AS builder
 
-# Enable health and metrics endpoints
+# ── Build-time options (baked into the optimised binary) ──────────────────────
+ENV KC_DB=postgres
 ENV KC_HEALTH_ENABLED=true
 ENV KC_METRICS_ENABLED=true
+# Railway terminates TLS at the edge → Keycloak runs plain HTTP internally
+ENV KC_HTTP_ENABLED=true
+# Trust X-Forwarded-* headers set by Railway's edge proxy
+ENV KC_PROXY_HEADERS=xforwarded
 
-# Tell Keycloak which DB vendor to optimise for at build time
-ENV KC_DB=postgres
-
-# Run the build step – this pre-processes Keycloak for faster startup
+# Pre-compile Keycloak with the above settings for fast startup
 RUN /opt/keycloak/bin/kc.sh build
 
-# ─────────────────────────────────────────────────────────────
-# Stage 2 – Minimal runtime image
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# Stage 2 – Lean runtime image
+# ─────────────────────────────────────────────────────────────────────────────
 FROM quay.io/keycloak/keycloak:26.1
 
-# Copy the pre-built Keycloak from the builder stage
 COPY --from=builder /opt/keycloak/ /opt/keycloak/
 
-# ── Runtime environment variables ────────────────────────────
-# Database
+# ── Runtime defaults (can be overridden by Railway env vars) ──────────────────
 ENV KC_DB=postgres
+ENV KC_HTTP_ENABLED=true
+ENV KC_PROXY_HEADERS=xforwarded
 ENV KC_HEALTH_ENABLED=true
 ENV KC_METRICS_ENABLED=true
 
-# Proxy / HTTP
-# Railway terminates TLS at the edge, so we run plain HTTP internally
-ENV KC_HTTP_ENABLED=true
-ENV KC_PROXY_HEADERS=xforwarded
-# Keycloak 26+ uses KC_PROXY_HEADERS instead of KC_PROXY
+# KC_HOSTNAME  → set in Railway as the bare domain, e.g. sweetauth.up.railway.app
+#                (NO https:// prefix – Keycloak 26 rejects full URLs here)
+# KC_DB_URL    → set in Railway
+# KC_DB_USERNAME / KC_DB_PASSWORD → set in Railway
+# KEYCLOAK_ADMIN / KEYCLOAK_ADMIN_PASSWORD → set in Railway
 
-# KC_HOSTNAME must be the bare domain (no https:// prefix).
-# Keycloak 26 rejects a full URL in this field.
-# The actual value is injected by Railway via the KC_HOSTNAME env var at runtime.
-# Example: KC_HOSTNAME=myapp.up.railway.app
-
-# Expose the HTTP port Railway will route to
 EXPOSE 8080
 
-# ── Entrypoint ───────────────────────────────────────────────
-# "start" uses the pre-built config from Stage 1.
-# All remaining runtime variables (KC_DB_URL, KC_DB_USERNAME,
-# KC_DB_PASSWORD, KC_HOSTNAME, KEYCLOAK_ADMIN,
-# KEYCLOAK_ADMIN_PASSWORD) are injected by Railway at runtime.
 ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
+# --optimized uses the pre-built config from Stage 1
 CMD ["start", "--optimized"]
