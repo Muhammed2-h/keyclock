@@ -34,6 +34,11 @@ ENV KC_HTTP_ENABLED=true
 ENV KC_PROXY_HEADERS=xforwarded
 # Keycloak 26+ uses KC_PROXY_HEADERS instead of KC_PROXY
 
+# KC_HOSTNAME must be the bare domain (no https:// prefix).
+# Keycloak 26 rejects a full URL in this field.
+# The actual value is injected by Railway via the KC_HOSTNAME env var at runtime.
+# Example: KC_HOSTNAME=myapp.up.railway.app
+
 # Expose the HTTP port Railway will route to
 EXPOSE 8080
 
