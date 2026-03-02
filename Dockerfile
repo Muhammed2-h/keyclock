@@ -12,6 +12,12 @@ ENV KC_METRICS_ENABLED=true
 ENV KC_HTTP_ENABLED=true
 # Trust X-Forwarded-* headers set by Railway's edge proxy
 ENV KC_PROXY_HEADERS=xforwarded
+# Enable HTTP/2 for multiplexed, faster connections
+ENV KC_HTTP_RELATIVE_PATH=/
+# Optimise DB connection pool at build time
+ENV KC_DB_POOL_INITIAL_SIZE=5
+ENV KC_DB_POOL_MIN_SIZE=5
+ENV KC_DB_POOL_MAX_SIZE=15
 
 # Pre-compile Keycloak with the above settings for fast startup
 RUN /opt/keycloak/bin/kc.sh build
@@ -29,6 +35,19 @@ ENV KC_HTTP_ENABLED=true
 ENV KC_PROXY_HEADERS=xforwarded
 ENV KC_HEALTH_ENABLED=true
 ENV KC_METRICS_ENABLED=true
+
+# ── Performance tuning ────────────────────────────────────────────────────────
+# Only log warnings/errors – reduces I/O and speeds up response times
+ENV KC_LOG_LEVEL=WARN
+# DB connection pool – pre-warm connections to avoid cold-connection latency
+ENV KC_DB_POOL_INITIAL_SIZE=5
+ENV KC_DB_POOL_MIN_SIZE=5
+ENV KC_DB_POOL_MAX_SIZE=15
+# Cache: use local (in-process) caches for single-instance Railway deploy
+ENV KC_CACHE=local
+# JVM: explicit heap sizing prevents JVM under-allocating in containers
+# Adjust based on your Railway plan memory (below = ~512 MB plan safe)
+ENV JAVA_OPTS_APPEND="-Xms256m -Xmx384m -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:+UseStringDeduplication -Djava.net.preferIPv4Stack=true"
 
 # KC_HOSTNAME  → set in Railway as the bare domain, e.g. sweetauth.up.railway.app
 #                (NO https:// prefix – Keycloak 26 rejects full URLs here)

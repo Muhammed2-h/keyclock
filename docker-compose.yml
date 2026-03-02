@@ -16,7 +16,8 @@ services:
 
       # ── Hostname ──────────────────────────────────────────────────────
       # Railway sets RAILWAY_PUBLIC_DOMAIN automatically
-      KC_HOSTNAME: https://${{RAILWAY_PUBLIC_DOMAIN}}
+      # NOTE: bare domain only – NO https:// prefix (Keycloak 26 rejects full URLs)
+      KC_HOSTNAME: ${{RAILWAY_PUBLIC_DOMAIN}}
 
       # ── Admin user (set via Railway secret variables) ─────────────────
       KEYCLOAK_ADMIN: ${{KEYCLOAK_ADMIN}}
@@ -29,6 +30,14 @@ services:
       # ── Observability ─────────────────────────────────────────────────
       KC_HEALTH_ENABLED: "true"
       KC_METRICS_ENABLED: "true"
+
+      # ── Performance tuning ────────────────────────────────────────────
+      KC_LOG_LEVEL: WARN
+      KC_CACHE: local
+      KC_DB_POOL_INITIAL_SIZE: "5"
+      KC_DB_POOL_MIN_SIZE: "5"
+      KC_DB_POOL_MAX_SIZE: "15"
+      JAVA_OPTS_APPEND: "-Xms256m -Xmx384m -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:+UseStringDeduplication -Djava.net.preferIPv4Stack=true"
     depends_on:
       - postgres
     healthcheck:
